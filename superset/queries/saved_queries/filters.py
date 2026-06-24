@@ -18,9 +18,8 @@ from typing import Any
 
 from flask import g, has_request_context, request
 from flask_babel import lazy_gettext as _
-from flask_sqlalchemy import BaseQuery
 from sqlalchemy import or_
-from sqlalchemy.orm.query import Query
+from sqlalchemy.orm import Query
 
 from superset import security_manager
 from superset.models.sql_lab import SavedQuery
@@ -81,7 +80,7 @@ class SavedQueryTagIdFilter(BaseTagIdFilter):  # pylint: disable=too-few-public-
 
 
 class SavedQueryFilter(BaseFilter):  # pylint: disable=too-few-public-methods
-    def apply(self, query: BaseQuery, value: Any) -> BaseQuery:
+    def apply(self, query: Query, value: Any) -> Query:
         """
         Filter saved queries to current user's queries unless this is a read
         request and the user can access all queries.
