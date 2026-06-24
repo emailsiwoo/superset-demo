@@ -29,6 +29,11 @@ test('renders a check icon for the Success state', () => {
   expect(container.querySelector('[data-icon="check"]')).toBeInTheDocument();
 });
 
+test('renders a running icon for the Working state', () => {
+  const { container } = renderIcon(AlertState.Working);
+  expect(container.querySelector('[aria-label="running"]')).toBeInTheDocument();
+});
+
 test('renders a close icon for the Error state', () => {
   const { container } = renderIcon(AlertState.Error);
   expect(container.querySelector('[data-icon="close"]')).toBeInTheDocument();
@@ -57,6 +62,18 @@ test('renders the neutral calendar icon for an unknown/never-run state', () => {
   expect(
     container.querySelector('[data-icon="check"]'),
   ).not.toBeInTheDocument();
+});
+
+test('labels the Working state "Report sending" for reports', async () => {
+  renderIcon(AlertState.Working, /* isReportEnabled */ true);
+  userEvent.hover(screen.getByRole('img'));
+  expect(await screen.findByText('Report sending')).toBeInTheDocument();
+});
+
+test('labels the Working state "Alert running" for alerts', async () => {
+  renderIcon(AlertState.Working, /* isReportEnabled */ false);
+  userEvent.hover(screen.getByRole('img'));
+  expect(await screen.findByText('Alert running')).toBeInTheDocument();
 });
 
 test('labels the Not triggered state "Report not yet run" for reports', async () => {
