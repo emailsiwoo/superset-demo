@@ -16,16 +16,16 @@
 # under the License.
 from typing import Any
 
-from flask_sqlalchemy import BaseQuery
+from sqlalchemy.orm import Query
 
 from superset import security_manager
-from superset.models.sql_lab import Query
+from superset.models.sql_lab import Query as QueryModel
 from superset.utils.core import get_user_id
 from superset.views.base import BaseFilter
 
 
 class QueryFilter(BaseFilter):  # pylint: disable=too-few-public-methods
-    def apply(self, query: BaseQuery, value: Any) -> BaseQuery:
+    def apply(self, query: Query, value: Any) -> Query:
         """
         Filter queries to only those owned by current user. If
         can_access_all_queries permission is set a user can list all queries
@@ -33,5 +33,5 @@ class QueryFilter(BaseFilter):  # pylint: disable=too-few-public-methods
         :returns: query
         """
         if not security_manager.can_access_all_queries():
-            query = query.filter(Query.user_id == get_user_id())
+            query = query.filter(QueryModel.user_id == get_user_id())
         return query
