@@ -455,3 +455,144 @@ class TestTaskManagerCompletion:
                 timeout=5.0,
                 poll_interval=0.1,
             )
+
+
+class TestPollForAbort:
+    """Tests for TaskManager._poll_for_abort retry logic"""
+
+    def setup_method(self):
+        """Reset TaskManager state before each test"""
+        TaskManager._initialized = False
+        TaskManager._channel_prefix = "gtf:abort:"
+        TaskManager._completion_channel_prefix = "gtf:complete:"
+
+    def teardown_method(self):
+        """Reset TaskManager state after each test"""
+        TaskManager._initialized = False
+        TaskManager._channel_prefix = "gtf:abort:"
+        TaskManager._completion_channel_prefix = "gtf:complete:"
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_detects_abort_and_invokes_callback(self, mock_check):
+        """Test that the poller detects abort status and calls the callback"""
+        mock_check.return_value = True
+        callback = MagicMock()
+        stop_event = threading.Event()
+
+        TaskManager._poll_for_abort(
+            task_uuid="test-uuid",
+            callback=callback,
+            stop_event=stop_event,
+            interval=0.05,
+            app=None,
+        )
+
+        callback.assert_called_once()
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_respects_stop_event(self, mock_check):
+        """Test that the poller exits when stop_event is set"""
+        mock_check.return_value = False
+        callback = MagicMock()
+        stop_event = threading.Event()
+
+        # Run poller in a thread and stop it shortly after
+        thread = threading.Thread(
+            target=TaskManager._poll_for_abort,
+            args=("test-uuid", callback, stop_event, 0.05, None),
+        )
+        thread.start()
+        time.sleep(0.15)
+        stop_event.set()
+        thread.join(timeout=2.0)
+
+        assert not thread.is_alive()
+        callback.assert_not_called()
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_retries_on_transient_error(self, mock_check):
+        """Test that a single transient error does not kill the poller"""
+        # First call raises, second call succeeds with abort detected
+        mock_check.side_effect = [
+            RuntimeError("connection reset"),
+            True,
+        ]
+        callback = MagicMock()
+        stop_event = threading.Event()
+
+        TaskManager._poll_for_abort(
+            task_uuid="test-uuid",
+            callback=callback,
+            stop_event=stop_event,
+            interval=0.05,
+            app=None,
+        )
+
+        callback.assert_called_once()
+        assert mock_check.call_count == 2
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_resets_error_count_on_success(self, mock_check):
+        """Test that a successful check resets the consecutive error counter"""
+        # error, success (resets), error, success (resets), then abort
+        mock_check.side_effect = [
+            RuntimeError("transient"),
+            False,  # success resets counter
+            RuntimeError("transient again"),
+            True,  # abort detected
+        ]
+        callback = MagicMock()
+        stop_event = threading.Event()
+
+        TaskManager._poll_for_abort(
+            task_uuid="test-uuid",
+            callback=callback,
+            stop_event=stop_event,
+            interval=0.05,
+            app=None,
+        )
+
+        callback.assert_called_once()
+        assert mock_check.call_count == 4
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_terminates_after_max_consecutive_errors(self, mock_check):
+        """Test that the poller gives up after max_consecutive_errors failures"""
+        mock_check.side_effect = RuntimeError("persistent failure")
+        callback = MagicMock()
+        stop_event = threading.Event()
+
+        TaskManager._poll_for_abort(
+            task_uuid="test-uuid",
+            callback=callback,
+            stop_event=stop_event,
+            interval=0.05,
+            app=None,
+            max_consecutive_errors=3,
+        )
+
+        # Callback should NOT be invoked since we never detected abort
+        callback.assert_not_called()
+        # Should have tried exactly max_consecutive_errors times
+        assert mock_check.call_count == 3
+
+    @patch.object(TaskManager, "_check_abort_status")
+    def test_poll_uses_app_context(self, mock_check):
+        """Test that the poller wraps database checks in app context"""
+        mock_check.return_value = True
+        callback = MagicMock()
+        stop_event = threading.Event()
+        mock_app = MagicMock()
+
+        TaskManager._poll_for_abort(
+            task_uuid="test-uuid",
+            callback=callback,
+            stop_event=stop_event,
+            interval=0.05,
+            app=mock_app,
+        )
+
+        # Verify app context was entered for the check
+        mock_app.app_context.assert_called()
+        # Callback should be invoked with app context
+        callback.assert_called_once()
