@@ -41,10 +41,10 @@ class LogDAO(BaseDAO[Log]):
         user_id = get_user_id()
         has_subject_title = or_(
             and_(
-                Dashboard.dashboard_title is not None,
+                Dashboard.dashboard_title.isnot(None),
                 Dashboard.dashboard_title != "",
             ),
-            and_(Slice.slice_name is not None, Slice.slice_name != ""),
+            and_(Slice.slice_name.isnot(None), Slice.slice_name != ""),
         )
 
         if distinct:
