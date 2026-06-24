@@ -654,16 +654,40 @@ class TaskManager:
         stop_event: threading.Event,
         interval: float,
         app: Any,
+        max_consecutive_errors: int = 3,
     ) -> None:
-        """Background polling loop - used when Redis pub/sub is not configured."""
+        """Background polling loop - used when Redis pub/sub is not configured.
+
+        Includes retry logic for transient database errors. The poller tolerates
+        up to ``max_consecutive_errors`` consecutive failures before propagating
+        the exception (which causes the listener loop to terminate). Successful
+        checks reset the error counter.
+        """
+        consecutive_errors = 0
 
         def check_database() -> bool:
-            # Need app context for database access
-            if app:
-                with app.app_context():
-                    return cls._check_abort_status(task_uuid)
-            else:
-                return cls._check_abort_status(task_uuid)
+            nonlocal consecutive_errors
+            try:
+                if app:
+                    with app.app_context():
+                        result = cls._check_abort_status(task_uuid)
+                else:
+                    result = cls._check_abort_status(task_uuid)
+                consecutive_errors = 0
+                return result
+            except Exception as ex:
+                consecutive_errors += 1
+                if consecutive_errors >= max_consecutive_errors:
+                    raise
+                logger.warning(
+                    "Transient error checking abort status for task %s "
+                    "(attempt %d/%d): %s",
+                    task_uuid,
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    ex,
+                )
+                return False
 
         cls._run_abort_listener_loop(
             task_uuid=task_uuid,
