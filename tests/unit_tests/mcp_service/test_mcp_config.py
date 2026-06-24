@@ -437,3 +437,73 @@ def test_create_default_mcp_auth_factory_jwt_build_failure_returns_none():
 
     assert result is None
     mock_logger.error.assert_called_once()
+
+
+def test_create_default_mcp_auth_factory_jwt_and_api_key_combined():
+    """JWT + API key both enabled returns a CompositeTokenVerifier
+    wrapping the JWT verifier."""
+    from superset.mcp_service.composite_token_verifier import CompositeTokenVerifier
+    from superset.mcp_service.mcp_config import create_default_mcp_auth_factory
+
+    mock_app = MagicMock()
+    mock_app.config.get.side_effect = lambda key, default=None: {
+        "MCP_AUTH_ENABLED": True,
+        "MCP_API_KEY_ENABLED": True,
+        "FAB_API_KEY_PREFIXES": ["sst_"],
+        "MCP_JWT_SECRET": "shhh",
+        "MCP_REQUIRED_SCOPES": [],
+    }.get(key, default)
+
+    sentinel_verifier = MagicMock()
+    with patch(
+        "superset.mcp_service.mcp_config._build_jwt_verifier",
+        return_value=sentinel_verifier,
+    ):
+        result = create_default_mcp_auth_factory(mock_app)
+
+    assert isinstance(result, CompositeTokenVerifier)
+    assert result._jwt_verifier is sentinel_verifier
+
+
+def test_create_default_mcp_auth_factory_jwt_failure_with_api_key_fallback():
+    """JWT build fails but API key auth is enabled →
+    CompositeTokenVerifier (API-key-only)."""
+    from superset.mcp_service.composite_token_verifier import CompositeTokenVerifier
+    from superset.mcp_service.mcp_config import create_default_mcp_auth_factory
+
+    mock_app = MagicMock()
+    mock_app.config.get.side_effect = lambda key, default=None: {
+        "MCP_AUTH_ENABLED": True,
+        "MCP_API_KEY_ENABLED": True,
+        "FAB_API_KEY_PREFIXES": ["sst_"],
+        "MCP_JWT_SECRET": "shhh",
+        "MCP_REQUIRED_SCOPES": [],
+    }.get(key, default)
+
+    with patch(
+        "superset.mcp_service.mcp_config._build_jwt_verifier",
+        side_effect=ValueError("bad key"),
+    ):
+        result = create_default_mcp_auth_factory(mock_app)
+
+    assert isinstance(result, CompositeTokenVerifier)
+    assert result._jwt_verifier is None
+
+
+def test_create_default_mcp_auth_factory_jwt_no_keys_with_api_key_fallback():
+    """JWT enabled but no keys configured + API key enabled → CompositeTokenVerifier."""
+    from superset.mcp_service.composite_token_verifier import CompositeTokenVerifier
+    from superset.mcp_service.mcp_config import create_default_mcp_auth_factory
+
+    mock_app = MagicMock()
+    mock_app.config.get.side_effect = lambda key, default=None: {
+        "MCP_AUTH_ENABLED": True,
+        "MCP_API_KEY_ENABLED": True,
+        "FAB_API_KEY_PREFIXES": ["sst_"],
+        "MCP_REQUIRED_SCOPES": [],
+    }.get(key, default)
+
+    result = create_default_mcp_auth_factory(mock_app)
+
+    assert isinstance(result, CompositeTokenVerifier)
+    assert result._jwt_verifier is None
