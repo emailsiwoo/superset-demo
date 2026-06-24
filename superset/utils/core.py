@@ -54,7 +54,6 @@ from typing import (
     Callable,
     cast,
     NamedTuple,
-    Optional,
     TYPE_CHECKING,
     TypedDict,
     TypeVar,
@@ -1505,7 +1504,7 @@ def get_user_email() -> str | None:
 
 
 @contextmanager
-def override_user(user: User | None, force: bool = True) -> Iterator[Any]:
+def override_user(user: User | None, force: bool = True) -> Iterator[None]:
     """
     Temporarily override the current user per `flask.g` with the specified user.
 
@@ -1720,7 +1719,7 @@ def get_column_names_from_metrics(metrics: list[Metric]) -> list[str]:
     return [col for col in map(get_column_name_from_metric, metrics) if col]
 
 
-def map_sql_type_to_inferred_type(sql_type: Optional[str]) -> str:
+def map_sql_type_to_inferred_type(sql_type: str | None) -> str:
     """
     Map a SQL type to a type string recognized by pandas' `infer_objects` method.
 
@@ -1811,7 +1810,7 @@ def extract_dataframe_dtypes(
         series = df[column]
         inferred_type: str = ""
         if series.isna().all():
-            sql_type: Optional[str] = ""
+            sql_type: str | None = ""
             if datasource and hasattr(datasource, "columns_types"):
                 if column in datasource.columns_types:
                     sql_type = datasource.columns_types.get(column)
