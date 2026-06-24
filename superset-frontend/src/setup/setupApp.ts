@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/* eslint global-require: 0 */
 import $ from 'jquery';
 import {
   SupersetClient,
@@ -28,30 +27,46 @@ import setupErrorMessages from 'src/setup/setupErrorMessages';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare global {
   interface Window {
-    $: any;
-    jQuery: any;
+    $: typeof $;
+    jQuery: typeof $;
   }
 }
 
-function showApiMessage(resp: ClientErrorObject) {
-  const template =
-    '<div class="alert"> ' +
-    '<button type="button" class="close" ' +
-    'data-dismiss="alert">\xD7</button> </div>';
+export function showApiMessage(resp: ClientErrorObject) {
+  const container = document.getElementById('alert-container');
+  if (!container) {
+    return;
+  }
+
   const severity = resp.severity || 'info';
-  $(template)
-    .addClass(`alert-${severity}`)
-    .append(resp.message || '')
-    .appendTo($('#alert-container'));
+
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `alert alert-${severity}`;
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'close';
+  closeButton.setAttribute('data-dismiss', 'alert');
+  closeButton.textContent = '\xD7';
+  closeButton.addEventListener('click', () => {
+    alertDiv.remove();
+  });
+
+  const messageSpan = document.createElement('span');
+  messageSpan.textContent = resp.message || '';
+
+  alertDiv.appendChild(closeButton);
+  alertDiv.appendChild(messageSpan);
+  container.appendChild(alertDiv);
 }
 
-function toggleCheckbox(apiUrlPrefix: string, selector: string) {
+function toggleCheckbox(apiUrlPrefix: string, checkbox: HTMLInputElement) {
   SupersetClient.get({
-    endpoint: apiUrlPrefix + ($(selector)[0] as HTMLInputElement).checked,
+    endpoint: apiUrlPrefix + checkbox.checked,
   })
     .then(() => undefined)
-    .catch(response =>
-      getClientErrorObject(response).then(parsedResp => {
+    .catch((response: Response) =>
+      getClientErrorObject(response).then((parsedResp: ClientErrorObject) => {
         if (parsedResp?.message) {
           showApiMessage(parsedResp);
         }
@@ -60,33 +75,35 @@ function toggleCheckbox(apiUrlPrefix: string, selector: string) {
 }
 
 export default function setupApp() {
-  $(document).ready(function () {
-    $(':checkbox[data-checkbox-api-prefix]').change(function (
-      this: HTMLElement,
-    ) {
-      const $this = $(this);
-      const prefix = $this.data('checkbox-api-prefix');
-      const id = $this.attr('id');
-      toggleCheckbox(prefix, `#${id}`);
+  document.addEventListener('DOMContentLoaded', () => {
+    const checkboxes = document.querySelectorAll<HTMLInputElement>(
+      'input[type="checkbox"][data-checkbox-api-prefix]',
+    );
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        const prefix = checkbox.dataset.checkboxApiPrefix;
+        if (prefix) {
+          toggleCheckbox(prefix, checkbox);
+        }
+      });
     });
 
     // for language picker dropdown
-    $<HTMLAnchorElement>('#language-picker a').click(function (
-      ev: JQuery.ClickEvent<
-        HTMLAnchorElement,
-        null,
-        HTMLAnchorElement,
-        HTMLAnchorElement
-      >,
-    ) {
-      ev.preventDefault();
-      SupersetClient.get({
-        url: ev.currentTarget.href,
-        parseMethod: null,
-      }).then(() => {
-        window.location.reload();
+    const languagePicker = document.getElementById('language-picker');
+    if (languagePicker) {
+      const links = languagePicker.querySelectorAll<HTMLAnchorElement>('a');
+      links.forEach(link => {
+        link.addEventListener('click', (ev: MouseEvent) => {
+          ev.preventDefault();
+          SupersetClient.get({
+            url: link.href,
+            parseMethod: null,
+          }).then(() => {
+            window.location.reload();
+          });
+        });
       });
-    });
+    }
   });
 
   // A set of hacks to allow apps to run within a FAB template
