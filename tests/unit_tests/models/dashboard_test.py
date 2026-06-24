@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import datetime, timezone
+
 from superset.models.dashboard import Dashboard
 
 
@@ -50,3 +52,38 @@ def test_dashboard_link_renders_plain_slug() -> None:
 
     assert "/superset/dashboard/sales/" in link
     assert "Sales" in link
+
+
+def test_dashboard_data_last_modified_time_naive_datetime() -> None:
+    """Dashboard.data treats naive changed_on as UTC when computing the epoch.
+
+    Calling .timestamp() on a naive datetime assumes the local timezone, which
+    produces wrong results on servers not set to UTC. The fix explicitly treats
+    naive datetimes as UTC before calling .timestamp().
+    """
+    dash = Dashboard()
+    dash.id = 1
+    dash.dashboard_title = "Test"
+    dash.published = False
+    dash.is_managed_externally = False
+    # Naive datetime — no tzinfo
+    dash.changed_on = datetime(2025, 1, 1, 0, 0, 0)
+
+    data = dash.data
+    expected = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp()
+    assert data["last_modified_time"] == expected
+
+
+def test_dashboard_data_last_modified_time_aware_datetime() -> None:
+    """Dashboard.data preserves the timezone of an already-aware changed_on."""
+    dash = Dashboard()
+    dash.id = 2
+    dash.dashboard_title = "Aware"
+    dash.published = False
+    dash.is_managed_externally = False
+    aware_dt = datetime(2025, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+    dash.changed_on = aware_dt
+
+    data = dash.data
+    expected = aware_dt.replace(microsecond=0).timestamp()
+    assert data["last_modified_time"] == expected
