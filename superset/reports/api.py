@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from flask import request, Response
 from flask_appbuilder.api import (
@@ -74,7 +74,7 @@ class ReportScheduleRestApi(BaseSupersetModelRestApi):
     datamodel = SQLAInterface(ReportSchedule)
 
     @before_request
-    def ensure_alert_reports_enabled(self) -> Optional[Response]:
+    def ensure_alert_reports_enabled(self) -> Response | None:
         if not is_feature_enabled("ALERT_REPORTS"):
             return self.response_404()
         return None
@@ -616,9 +616,9 @@ class ReportScheduleRestApi(BaseSupersetModelRestApi):
     @safe
     @statsd_metrics
     @event_logger.log_this_with_context(
-        action=lambda self,
-        *args,
-        **kwargs: f"{self.__class__.__name__}.slack_channels",
+        action=lambda self, *args, **kwargs: (
+            f"{self.__class__.__name__}.slack_channels"
+        ),
         log_to_statsd=False,
     )
     def slack_channels(self, **kwargs: Any) -> Response:
