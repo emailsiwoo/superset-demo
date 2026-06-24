@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timezone
 from typing import Any
 
 from flask import make_response, request, Response
@@ -1033,7 +1034,11 @@ class SemanticLayerRestApi(BaseSupersetApi):
             item: tuple[str, Database | SemanticLayer],
         ) -> float:
             changed_on = item[1].changed_on
-            return changed_on.timestamp() if changed_on else 0.0
+            if not changed_on:
+                return 0.0
+            if changed_on.tzinfo is None:
+                changed_on = changed_on.replace(tzinfo=timezone.utc)
+            return changed_on.timestamp()
 
         def _sort_key_name(
             item: tuple[str, Database | SemanticLayer],

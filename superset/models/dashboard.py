@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import defaultdict, deque
+from datetime import timezone
 from typing import Any, Callable
 
 import sqlalchemy as sqla
@@ -263,7 +264,9 @@ class Dashboard(CoreDashboard, AuditMixinNullable, ImportExportMixin):
             "slug": self.slug,
             "slices": [slc.data for slc in self.slices],
             "position_json": positions,
-            "last_modified_time": self.changed_on.replace(microsecond=0).timestamp(),
+            "last_modified_time": self.changed_on.replace(
+                microsecond=0, tzinfo=self.changed_on.tzinfo or timezone.utc
+            ).timestamp(),
             "is_managed_externally": self.is_managed_externally,
         }
 

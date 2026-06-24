@@ -17,7 +17,7 @@
 # pylint: disable=too-many-lines
 import functools
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any, Callable, cast
 from zipfile import is_zipfile, ZipFile
@@ -830,8 +830,9 @@ class DashboardRestApi(CustomTagsOptimizationMixin, BaseSupersetModelRestApi):
             return self.response_400(message=error.messages)
         try:
             changed_model = UpdateDashboardCommand(pk, item).run()
-            last_modified_time = changed_model.changed_on.replace(
-                microsecond=0
+            changed_on = changed_model.changed_on
+            last_modified_time = changed_on.replace(
+                microsecond=0, tzinfo=changed_on.tzinfo or timezone.utc
             ).timestamp()
             response = self.response(
                 200,
@@ -2227,7 +2228,8 @@ class DashboardRestApi(CustomTagsOptimizationMixin, BaseSupersetModelRestApi):
             result={
                 "id": dash.id,
                 "last_modified_time": dash.changed_on.replace(
-                    microsecond=0
+                    microsecond=0,
+                    tzinfo=dash.changed_on.tzinfo or timezone.utc,
                 ).timestamp(),
             },
         )
