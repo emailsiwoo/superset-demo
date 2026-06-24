@@ -127,6 +127,12 @@ class CompositeTokenVerifier(TokenVerifier):
                     return None
                 user = sm.validate_api_key(token)
                 username = user.username if user else None
+                # Reject empty/falsy usernames: a valid API key must
+                # resolve to a user with a non-empty username for the
+                # downstream fast path (API_KEY_VALIDATED_USERNAME_CLAIM)
+                # to work correctly.
+                if not username:
+                    return None
                 # Unbind the local reference so this frame no longer points at
                 # the raw token (defense-in-depth). Python does not zero the
                 # underlying string memory on rebind.
@@ -158,7 +164,7 @@ class CompositeTokenVerifier(TokenVerifier):
                 username = await loop.run_in_executor(
                     None, self._validate_api_key_sync, token
                 )
-                if username is None:
+                if not username:
                     logger.debug(
                         "API key rejected at transport layer (invalid or expired)"
                     )

@@ -343,3 +343,59 @@ async def test_transport_validation_jwt_token_not_affected() -> None:
         "eyJhbGciOiJSUzI1NiJ9.jwt_payload"
     )
     mock_app.appbuilder.sm.validate_api_key.assert_not_called()
+
+
+# -- Empty/falsy username edge cases --
+
+
+@pytest.mark.asyncio
+async def test_transport_validation_empty_username_rejects_token() -> None:
+    """A user with an empty-string username is rejected at transport.
+
+    Without this guard the empty username passes the ``if username is None``
+    check and creates an AccessToken with an empty
+    ``API_KEY_VALIDATED_USERNAME_CLAIM``, causing the downstream fast path
+    in ``_resolve_user_from_api_key`` to be bypassed (walrus operator on
+    empty string is falsy) and triggering a redundant second DB validation.
+    """
+    mock_user = MagicMock()
+    mock_user.username = ""
+
+    mock_sm = MagicMock()
+    mock_sm.validate_api_key = MagicMock(return_value=mock_user)
+
+    mock_app = MagicMock()
+    mock_app.app_context.return_value.__enter__ = MagicMock(return_value=None)
+    mock_app.app_context.return_value.__exit__ = MagicMock(return_value=False)
+    mock_app.appbuilder.sm = mock_sm
+
+    verifier = CompositeTokenVerifier(
+        jwt_verifier=None, api_key_prefixes=["sst_"], app=mock_app
+    )
+
+    result = await verifier.verify_token("sst_valid_key_empty_user")
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_transport_validation_none_username_rejects_token() -> None:
+    """A user whose ``.username`` is None is rejected at transport."""
+    mock_user = MagicMock()
+    mock_user.username = None
+
+    mock_sm = MagicMock()
+    mock_sm.validate_api_key = MagicMock(return_value=mock_user)
+
+    mock_app = MagicMock()
+    mock_app.app_context.return_value.__enter__ = MagicMock(return_value=None)
+    mock_app.app_context.return_value.__exit__ = MagicMock(return_value=False)
+    mock_app.appbuilder.sm = mock_sm
+
+    verifier = CompositeTokenVerifier(
+        jwt_verifier=None, api_key_prefixes=["sst_"], app=mock_app
+    )
+
+    result = await verifier.verify_token("sst_valid_key_none_user")
+
+    assert result is None
